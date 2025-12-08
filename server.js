@@ -16,6 +16,7 @@ import dashboardHandler from "./api/dashboard/index.js";
 import bussinessInfoHandler from "./api/bussiness_info/index.js";
 import bussinessInfoStatusHandler from "./api/bussiness_info/status.js";
 import aiReportHandler from "./api/report/ai_report.js";
+import betaLeadHandler from "./api/beta/index.js";
 
 dotenv.config();
 
@@ -131,6 +132,13 @@ app.get("/api/bussiness_info/status", (req, res) =>
 app.get("/api/report/ai_report", (req, res) =>
   aiReportHandler(req, res).catch((error) => {
     console.error("Error in /api/report/ai_report:", error);
+    res.status(500).json({ error: "Internal server error" });
+  })
+);
+
+app.post("/api/beta", (req, res) =>
+  betaLeadHandler(req, res).catch((error) => {
+    console.error("Error in /api/beta:", error);
     res.status(500).json({ error: "Internal server error" });
   })
 );
