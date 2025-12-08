@@ -1,0 +1,14 @@
+{
+  "name": "relatoria-shared",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Módulos compartilhados (schemas, clientes) entre API e worker",
+  "exports": {
+    "./supabaseClient.js": "./supabaseClient.js",
+    "./aiSchemas.js": "./aiSchemas.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.86.0"
+  }
+}
+
