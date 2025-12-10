@@ -6,11 +6,13 @@ import uploadCreateHandler from "./api/upload/create.js";
 import uploadStatusHandler from "./api/upload/status.js";
 import datasetPreviewHandler from "./api/dataset/preview.js";
 import datasetSaveMappingHandler from "./api/dataset/save_mapping.js";
+import datasetGetSampleHandler from "./api/dataset/get_sample.js";
 import reportCreateHandler from "./api/report/index.js";
 import reportStatusHandler from "./api/report/status.js";
 import reportViewHandler from "./api/report/view.js";
 import reportSendEmailHandler from "./api/report/send_email.js";
 import reportDeleteHandler from "./api/report/delete.js";
+import reportRegenerateHandler from "./api/report/regenerate_report.js";
 import libraryHandler from "./api/library/index.js";
 import dashboardHandler from "./api/dashboard/index.js";
 import bussinessInfoHandler from "./api/bussiness_info/index.js";
@@ -35,7 +37,11 @@ app.get("/", (req, res) => {
 });
 
 app.get("/health", (req, res) => {
-  res.json({ status: "ok", service: "api", env: process.env.NODE_ENV || "dev" });
+  res.json({
+    status: "ok",
+    service: "api",
+    env: process.env.NODE_ENV || "dev",
+  });
 });
 
 app.post("/api/upload/create", (req, res) =>
@@ -66,6 +72,13 @@ app.post("/api/dataset/save_mapping", (req, res) =>
   })
 );
 
+app.get("/api/dataset/get_sample", (req, res) =>
+  datasetGetSampleHandler(req, res).catch((error) => {
+    console.error("Error in /api/dataset/get_sample:", error);
+    res.status(500).json({ error: "Internal server error" });
+  })
+);
+
 app.get("/api/report/status", (req, res) =>
   reportStatusHandler(req, res).catch((error) => {
     console.error("Error in /api/report/status:", error);
@@ -90,6 +103,13 @@ app.get("/api/report/view", (req, res) =>
 app.post("/api/report/send_email", (req, res) =>
   reportSendEmailHandler(req, res).catch((error) => {
     console.error("Error in /api/report/send_email:", error);
+    res.status(500).json({ error: "Internal server error" });
+  })
+);
+
+app.post("/api/report/regenerate_report", (req, res) =>
+  reportRegenerateHandler(req, res).catch((error) => {
+    console.error("Error in /api/report/regenerate_report:", error);
     res.status(500).json({ error: "Internal server error" });
   })
 );
@@ -147,4 +167,3 @@ app.listen(PORT, () => {
   console.log(`🚀 [API] Server running on http://localhost:${PORT}`);
   console.log(`📝 [API] Environment: ${process.env.NODE_ENV || "development"}`);
 });
-
