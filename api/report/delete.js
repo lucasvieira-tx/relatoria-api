@@ -38,10 +38,10 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Fetch report to validate ownership and get storage path
+    // Fetch report to validate ownership and get storage path and dataset_id
     const { data: rows, error: fetchErr } = await supabaseAdmin
       .from("report_requests")
-      .select("id, owner_id, pdf_path")
+      .select("id, owner_id, pdf_path, dataset_id, *")
       .eq("id", reportId)
       .limit(1);
 
@@ -63,6 +63,41 @@ export default async function handler(req, res) {
       });
       return res.status(403).json({ error: "Forbidden" });
     }
+
+    // Save to history table before deletion
+    console.log(
+      "💾 - [Report Delete] Saving report to history before deletion..."
+    );
+    const historyPayload = {
+      ...report,
+      deleted_at: new Date().toISOString(),
+      original_id: report.id,
+      deletion_reason: "user_requested",
+    };
+
+    // Remove id to let Supabase generate a new one for history
+    delete historyPayload.id;
+
+    const { data: historyRecord, error: historyErr } = await supabaseAdmin
+      .from("report_requests_history")
+      .insert(historyPayload)
+      .select()
+      .single();
+
+    if (historyErr) {
+      console.error(
+        "❌ - [Report Delete] Database error saving to history:",
+        historyErr.message
+      );
+      return res
+        .status(500)
+        .json({ error: "Failed to save report to history" });
+    }
+
+    console.log(
+      "✅ - [Report Delete] Report saved to history successfully:",
+      historyRecord.id
+    );
 
     // Best effort remove PDF from storage
     if (report.pdf_path) {
@@ -99,7 +134,7 @@ export default async function handler(req, res) {
       }
     }
 
-    // Delete database row
+    // Delete database row from report_requests
     const { error: deleteErr } = await supabaseAdmin
       .from("report_requests")
       .delete()
@@ -110,11 +145,82 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "Failed to delete report" });
     }
 
-    console.log("✅ - [Report Delete] Report deleted:", reportId);
-    return res.status(200).json({ success: true, deleted_id: reportId });
+    console.log(
+      "✅ - [Report Delete] Report deleted from report_requests:",
+      reportId
+    );
+
+    // Delete associated dataset if it exists
+    if (report.dataset_id) {
+      console.log(
+        "🗑️ - [Report Delete] Deleting associated dataset:",
+        report.dataset_id
+      );
+
+      // First, get dataset info to remove files from storage if needed
+      const { data: datasetInfo, error: datasetFetchErr } = await supabaseAdmin
+        .from("datasets")
+        .select("filename")
+        .eq("id", report.dataset_id)
+        .single();
+
+      if (!datasetFetchErr && datasetInfo?.filename) {
+        try {
+          // Remove dataset file from storage
+          const { error: datasetStorageErr } = await supabaseAdmin.storage
+            .from("datasets")
+            .remove([datasetInfo.filename]);
+
+          if (datasetStorageErr) {
+            console.error(
+              "⚠️ - [Report Delete] Failed to remove dataset file from storage:",
+              datasetStorageErr.message
+            );
+          } else {
+            console.log(
+              "✅ - [Report Delete] Dataset file removed from storage"
+            );
+          }
+        } catch (storageEx) {
+          console.error(
+            "⚠️ - [Report Delete] Exception while removing dataset file:",
+            storageEx.message
+          );
+        }
+      }
+
+      // Delete dataset from database
+      const { error: datasetDeleteErr } = await supabaseAdmin
+        .from("datasets")
+        .delete()
+        .eq("id", report.dataset_id);
+
+      if (datasetDeleteErr) {
+        console.error(
+          "❌ - [Report Delete] Failed to delete associated dataset:",
+          datasetDeleteErr.message
+        );
+        // Note: We don't return error here as the main report was deleted successfully
+        // But we log the error for monitoring
+      } else {
+        console.log(
+          "✅ - [Report Delete] Associated dataset deleted:",
+          report.dataset_id
+        );
+      }
+    }
+
+    console.log(
+      "✅ - [Report Delete] Report and associated data deleted successfully"
+    );
+    return res.status(200).json({
+      success: true,
+      deleted_id: reportId,
+      deleted_dataset_id: report.dataset_id || null,
+      history_id: historyRecord.id,
+    });
   } catch (err) {
     console.error("❌ - [Report Delete] Unexpected error:", err.message);
     return res.status(500).json({ error: "Internal server error" });
   }
 }
-
